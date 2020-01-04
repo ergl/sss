@@ -1,6 +1,5 @@
 use "random"
 use "collections"
-use "debug"
 
 type Share is (U128, U128)
 
@@ -26,7 +25,6 @@ primitive SSS
     // n-1 numbers (v_i, i = 1..n-1), and then v_n = (secret - v_1 - ... - v_{n-1})
     // After that, we know that secret = \sum_0^{n-1} v_i
     // This works because overflow semantics are well defined modulo 2^128
-    Debug.out("generate: trivial sharing")
     let repr = Array[Share].create(shares)
     let shares' = shares.u128()
 
@@ -80,7 +78,6 @@ primitive SSS
 
   fun _easy_recover(shares: Array[Share]): U128 =>
     // See _easy_generate
-    Debug.out("recover: trivial sharing")
     var secret: U128 = 0
     for v in shares.values() do
       secret = secret + v._2
@@ -92,7 +89,8 @@ primitive SSS
       return _easy_recover(shares)
     end
 
-    if shares.size() < 2 then
+    if shares.size() == 1 then
+      // If there's one share, then shares[0] == secret
       error
     else
       _interpolate(shares, prime)?

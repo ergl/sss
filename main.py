@@ -111,7 +111,6 @@ def recover_secret(shares, prime=_PRIME):
 def main():
     """Main function"""
     secret, shares = make_random_shares(minimum=3, shares=6)
-
     print("Secret: ", secret)
     print("Shares:")
     if shares:
