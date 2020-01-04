@@ -21,14 +21,37 @@ class RandomP
     _r.u128().rem(_p)
 
 primitive SSS
+  fun _easy_generate(shares: USize, random: RandomP): (U128, Array[Share]) =>
+    // If t = n, we can use modular arithmetic to divide the secret into
+    // n-1 numbers (v_i, i = 1..n-1), and then v_n = (secret - v_1 - ... - v_{n-1})
+    // After that, we know that secret = \sum_0^{n-1} v_i
+    // This works because overflow semantics are well defined modulo 2^128
+    Debug.out("generate: trivial sharing")
+    let repr = Array[Share].create(shares)
+    let shares' = shares.u128()
+
+    let secret = random()
+    var remaining = secret
+    for i in Range[U128](1, shares' - 1) do // Skip secret
+      let v_secret = secret + random()
+      repr.push((i, v_secret))
+      remaining = remaining - v_secret
+    end
+    repr.push((shares', remaining))
+    (secret, repr)
+
   fun apply(threshold: USize,
-             shares: USize,
-             prime: U128 = Mersenne()): (U128, Array[Share])? =>
+            shares: USize,
+            prime: U128 = Mersenne()): (U128, Array[Share])? =>
+
+    let random = RandomP(prime)
+    if (threshold == shares) then
+      return _easy_generate(shares, random)
+    end
 
     let repr = Array[U128].create(threshold)
-    let r = RandomP(prime)
     for i in Range(0, threshold) do
-      repr.push(r())
+      repr.push(random())
     end
 
     let points = Array[Share].create(shares)
@@ -48,7 +71,20 @@ primitive SSS
     end
     res
 
-  fun recover_secret(shares: Array[Share], prime: U128 = Mersenne()): U128? =>
+  fun _easy_recover(shares: Array[Share]): U128 =>
+    // See _easy_generate
+    Debug.out("recover: trivial sharing")
+    var secret: U128 = 0
+    for v in shares.values() do
+      secret = secret + v._2
+    end
+    secret
+
+  fun recover_secret(threshold: USize, share_s: USize, shares: Array[Share], prime: U128): U128? =>
+    if threshold == share_s then
+      return _easy_recover(shares)
+    end
+
     if shares.size() < 2 then
       error
     else
@@ -112,7 +148,8 @@ primitive SSS
 actor Main
   new create(env: Env) =>
     try
-     (let secret, let shares) = SSS(3, 6)?
+      let prime = Mersenne()
+      (let secret, let shares) = SSS(6, 6, prime)?
       env.out.print("Secret is " + secret.string())
       env.out.print("Shares:")
       for i in Range(0, shares.size()) do
@@ -120,10 +157,10 @@ actor Main
         env.out.print("(" + idx.string() + "," + value.string() + ")")
       end
 
-      let result_no_threshold = SSS.recover_secret([shares(0)?; shares(1)?])?
+      let result_no_threshold = SSS.recover_secret(6, 6, [shares(0)?; shares(1)?], prime)?
       env.out.print("Result (under threshold): " + result_no_threshold.string())
-      let result_threshold = SSS.recover_secret([shares(0)?; shares(1)?; shares(5)?])?
+      let result_threshold = SSS.recover_secret(6, 6, [shares(0)?; shares(1)?; shares(2)?], prime)?
       env.out.print("Result (with threshold): " + result_threshold.string())
-      let result_all = SSS.recover_secret(shares)?
+      let result_all = SSS.recover_secret(6, 6, shares, prime)?
       env.out.print("Result (with all shares): " + result_all.string())
     end
