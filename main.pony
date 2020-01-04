@@ -100,33 +100,22 @@ primitive SSS
 
   fun _interpolate(shares: Array[Share], prime: U128): U128? =>
     var acc: U128 = 0
-    for (x, y) in shares.values() do
-      Debug.out("Calculating lagrange_" + x.string())
-      let l_j = _lagrange_poly_at(x, shares, prime)?
-      Debug.out("lagrange_" + x.string() + ": " + l_j.string())
-      acc = acc + (y * l_j)
+    for (x_j, y_j) in shares.values() do
+      let l_j = _lagrange_poly_at(x_j, shares, prime)?
+      acc = _add_mod(acc, _mul_mod(y_j, l_j, prime), prime)
     end
-    acc.rem(prime)
+    acc
 
   fun _lagrange_poly_at(x_j: U128, xs: Array[Share], prime: U128): U128? =>
     var acc: U128 = 1
     for (x, _) in xs.values() do
       if x != x_j then
-        Debug.out("x_m: " + x.string())
-        let dem = if x > x_j then
-          x - x_j
-        else // x_j > x
-          prime - (x_j - x)
-        end
-        Debug.out("x_m - x_j: " + x.string() + " - " + x_j.string() + " = " + dem.string())
+        let dem = _sub_mod(x, x_j, prime)
         let div = _div_mod(x, dem, prime)?
-        Debug.out("x_m / (x_m - x_j): " + div.string())
-        acc = try (acc *? div).rem(prime) else Debug.out("Overflow during l"); error end
-        // acc = (acc * div).rem(prime)
+        acc = _mul_mod(acc, div, prime)
       end
     end
-
-    acc.u128()
+    acc
 
     fun _add_mod(a: U128, b: U128, p: U128): U128 =>
       let b' = p - b
@@ -134,6 +123,13 @@ primitive SSS
         a - b'
       else
         (p - b') + a
+      end
+
+    fun _sub_mod(a: U128, b: U128, p: U128): U128 =>
+      if (a >= b) then
+        a - b
+      else
+        (p - b) + a
       end
 
     fun _mul_mod(a: U128, b: U128, p: U128): U128 =>
@@ -158,7 +154,7 @@ primitive SSS
 
   // Since (n / m) is n * 1/m, (n / m) mod p is n * m^-1 mod p
   fun _div_mod(n: U128, m: U128, p: U128): U128? =>
-    (n * _inverse(m, p)?).rem(p)
+    _mul_mod(n, _inverse(m, p)?, p)
 
   fun _inverse(m: U128, p: U128): U128? =>
     (var t, var new_t) = (I128(0), I128(1))
