@@ -118,8 +118,10 @@ def main():
         for share in shares:
             print(share)
 
+    print("Secret NOT recovered from less than threshold: ", recover_secret(shares[:2]))
     print("Secret recovered from minimum subset of shares: ", recover_secret(shares[:3]))
     print("Secret recovered from a different minimum subset of shares: ", recover_secret(shares[-3:]))
+    print("Secret recovered with all shares: ", recover_secret(shares))
 
 if __name__ == '__main__':
     main()

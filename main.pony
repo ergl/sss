@@ -6,8 +6,8 @@ type Share is (U128, U128)
 
 primitive Mersenne
   fun apply(): U128 =>
-    // 8th Mersenne prime is the last Mernsenne prime to fit into a U128
-    F64(2).pow(61.0).floor().u128() - 1
+    // 12th Mersenne prime
+    F64(2).pow(127.0).floor().u128() - 1
 
 class RandomP
   let _p: U128
@@ -42,31 +42,38 @@ primitive SSS
 
   fun apply(threshold: USize,
             shares: USize,
-            prime: U128 = Mersenne()): (U128, Array[Share])? =>
+            prime: U128 = Mersenne()): (U128, Array[Share]) =>
 
     let random = RandomP(prime)
     if (threshold == shares) then
       return _easy_generate(shares, random)
     end
 
+    // First, generate t random numbers, with the secret at repr(0)
+    let secret = random()
     let repr = Array[U128].create(threshold)
-    for i in Range(0, threshold) do
+    repr.push(secret)
+    for i in Range(1, threshold) do
       repr.push(random())
     end
 
+    // Next, we evaluate the polynomial at x \in {1..t}
+    // (skip x=0, as that is secret)
     let points = Array[Share].create(shares)
-    for i in Range[U128](1, shares.u128() + 1) do
-      let secret = _eval_at(repr, i, prime)
-      points.push((i, secret))
+    for x in Range[U128](1, shares.u128() + 1) do
+      let y = _eval_at(repr, x, prime)
+      points.push((x, y))
     end
 
-    (repr(0)?, points)
+    (secret, points)
 
   fun _eval_at(poly: Array[U128], x: U128, prime: U128): U128 =>
     var res: U128 = 0
     try
       for idx in Range(poly.size() - 1, -1, -1) do
-        res = ((res * x) + poly(idx)?).rem(prime)
+        res = _mul_mod(res, x, prime)
+        // Ignore error because index is always well defined
+        res = _add_mod(res, poly(idx)?, prime)
       end
     end
     res
@@ -121,6 +128,34 @@ primitive SSS
 
     acc.u128()
 
+    fun _add_mod(a: U128, b: U128, p: U128): U128 =>
+      let b' = p - b
+      if (a >= b') then
+        a - b'
+      else
+        (p - b') + a
+      end
+
+    fun _mul_mod(a: U128, b: U128, p: U128): U128 =>
+      if (a == 0) or (b == 0) then
+        return 0
+      end
+
+      if (a == 1) then
+        return b
+      end
+
+      if (b == 1) then
+        return a
+      end
+
+      let a' = _mul_mod(a, b/2, p)
+      if (b.rem(2) == 0) then // Even
+        _add_mod(a', a', p)
+      else
+        _add_mod(a, _add_mod(a', a', p), p)
+      end
+
   // Since (n / m) is n * 1/m, (n / m) mod p is n * m^-1 mod p
   fun _div_mod(n: U128, m: U128, p: U128): U128? =>
     (n * _inverse(m, p)?).rem(p)
@@ -148,8 +183,10 @@ primitive SSS
 actor Main
   new create(env: Env) =>
     try
+      let t: USize = 3
+      let n: USize = 6
       let prime = Mersenne()
-      (let secret, let shares) = SSS(6, 6, prime)?
+      (let secret, let shares) = SSS(t, n, prime)
       env.out.print("Secret is " + secret.string())
       env.out.print("Shares:")
       for i in Range(0, shares.size()) do
@@ -157,10 +194,10 @@ actor Main
         env.out.print("(" + idx.string() + "," + value.string() + ")")
       end
 
-      let result_no_threshold = SSS.recover_secret(6, 6, [shares(0)?; shares(1)?], prime)?
+      let result_no_threshold = SSS.recover_secret(t, n, [shares(0)?; shares(1)?], prime)?
       env.out.print("Result (under threshold): " + result_no_threshold.string())
-      let result_threshold = SSS.recover_secret(6, 6, [shares(0)?; shares(1)?; shares(2)?], prime)?
+      let result_threshold = SSS.recover_secret(t, n, [shares(0)?; shares(1)?; shares(2)?], prime)?
       env.out.print("Result (with threshold): " + result_threshold.string())
-      let result_all = SSS.recover_secret(6, 6, shares, prime)?
+      let result_all = SSS.recover_secret(t, n, shares, prime)?
       env.out.print("Result (with all shares): " + result_all.string())
     end
