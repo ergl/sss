@@ -115,6 +115,9 @@ primitive SSS
     end
     acc
 
+    // _add_mod and _sub_mod implementations come from
+    // Arndr, Jörg - Matters Computational
+    // https://www.jjj.de/fxt/fxtbook.pdf
     fun _add_mod(a: U128, b: U128, p: U128): U128 =>
       let b' = p - b
       if (a >= b') then
@@ -130,6 +133,7 @@ primitive SSS
         (p - b) + a
       end
 
+    // _mul_mod taken from https://stackoverflow.com/a/20975702
     fun _mul_mod(a: U128, b: U128, p: U128): U128 =>
       if (a == 0) or (b == 0) then
         return 0
@@ -154,6 +158,8 @@ primitive SSS
   fun _div_mod(n: U128, m: U128, p: U128): U128? =>
     _mul_mod(n, _inverse(m, p)?, p)
 
+  // Implementation taken from
+  // https://en.wikipedia.org/wiki/Extended_Euclidean_algorithm#Modular_integers
   fun _inverse(m: U128, p: U128): U128? =>
     (var t, var new_t) = (I128(0), I128(1))
     (var r, var new_r) = (p.i128(), m.i128()) // So we don't underflow
