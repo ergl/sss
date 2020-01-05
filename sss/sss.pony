@@ -1,6 +1,13 @@
 use "random"
 use "collections"
 
+type Share is (U128, U128)
+
+primitive Mersenne
+  fun apply(): U128 =>
+    // 12th Mersenne prime
+    F64(2).pow(127.0).floor().u128() - 1
+
 class _RandomP
   let _p: U128
   let _r: Rand

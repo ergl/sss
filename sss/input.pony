@@ -24,34 +24,6 @@ primitive Input
       fun ref dispose() => term.dispose()
     end
 
-primitive StringToUInt
-  fun encode(str: String val): U128? =>
-    let bytes = str.array()
-    let limit = bytes.size().min(16)
-    var acc: U128 = 0
-    var offset: U128 = 0
-    var idx: USize = 0
-    while idx < limit do
-      acc = acc + (bytes(((limit - 1) - idx))?.u128() << offset)
-      idx = idx + 1
-      offset = offset + 8
-    end
-    acc
-
-  fun decode(n: U128): String val =>
-    let bytes = recover Array[U8].create(16) end
-    var offset: U128 = 0
-    while offset <= 120 do
-      let value = (n >> offset).u8()
-      if value == 0 then
-        break
-      else
-        bytes.unshift(value)
-      end
-      offset = offset + 8
-    end
-    String.from_array(consume bytes)
-
 class _EncryptNotify is ReadlineNotify
   let _out: OutStream
   let _threshold: USize
@@ -73,7 +45,7 @@ class _EncryptNotify is ReadlineNotify
       let secret = StringToUInt.encode(line)?
       let shares = SSS(secret, _threshold, _total)
       for share in shares.values() do
-        _out.print(ShareIO.encode(share))
+        _out.print(ShareEncoder.encode(share))
       end
     else
       _out.print("Invalid secret, please use only valid ASCII characters")
@@ -97,7 +69,7 @@ class _DecryptNotify is ReadlineNotify
     _shares = Array[Share].create(threshold.usize())
 
   fun ref apply(line: String val, prompt: Promise[String val] tag) =>
-    try _shares.push(ShareIO.decode(line)?) end
+    try _shares.push(ShareEncoder.decode(line)?) end
     if _current_share == _threshold then
       prompt.reject()
       try
